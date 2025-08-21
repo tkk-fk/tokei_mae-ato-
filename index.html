@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>アナログ時計の読み方補助</title>
+  <style>
+    :root{
+      --bg:#fff; --fg:#111; --muted:#e6e8ec; --accent:#1e90ff; --accent2:#ff6b6b;
+    }
+    *{ box-sizing:border-box }
+    body{
+      margin:0; color:var(--fg); background:var(--bg);
+      font-family: system-ui,-apple-system,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+      line-height:1.6;
+    }
+    .container{ max-width:920px; margin:0 auto; padding:16px; display:grid; gap:16px; }
+    h1{ margin:0; font-size:clamp(18px,4vw,28px) }
+    .guide{ margin:0; font-weight:700; font-size:clamp(14px,2.8vw,16px) }
+
+    .clock-wrap{ display:grid; place-items:center; }
+    svg{ width:min(80vw,480px); height:auto; touch-action:none; }
+
+    .meta{ text-align:center }
+    #digital{ font-size:clamp(18px,4vw,28px); font-weight:700; letter-spacing:.02em }
+    .small{ font-size:12px; opacity:.75 }
+
+    .timebar{ padding:8px 0 24px; position:relative }
+    .range-wrap{ position:relative; padding:36px 8px 8px } /* 上にボタンを置くので少し余白を増やす */
+    .now-label{
+      position:absolute; left:50%; top:14px; transform:translateX(-50%);
+      font-size:12px; color:#555; background:#fff; padding:0 4px; border-radius:4px; pointer-events:none;
+    }
+    input[type="range"]{
+      width:100%; appearance:none; height:12px; border-radius:999px; background:var(--muted); outline:none; margin:0;
+    }
+    /* WebKit */
+    input[type="range"]::-webkit-slider-thumb{
+      appearance:none; width:28px; height:28px; border-radius:50%;
+      background:var(--fg); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.2); cursor:grab;
+    }
+    input[type="range"]:active::-webkit-slider-thumb{ cursor:grabbing }
+    /* Firefox */
+    input[type="range"]::-moz-range-thumb{
+      width:28px; height:28px; border-radius:50%; background:var(--fg); border:3px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.2);
+    }
+    input[type="range"]::-moz-range-track{ height:12px; background:transparent }
+
+    .controls{ display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:8px }
+    button{
+      padding:10px 14px; border-radius:12px; border:1px solid var(--muted);
+      background:#f8f9fb; cursor:pointer; font-size:16px;
+    }
+    button:active{ transform:translateY(1px) }
+
+    .toggle{
+      display:flex; align-items:center; justify-content:center; gap:10px; margin-top:6px;
+      font-size:14px;
+    }
+    .toggle input{ width:44px; height:24px; appearance:none; background:var(--muted); border-radius:999px; position:relative; outline:none; cursor:pointer; transition:.2s }
+    .toggle input::after{
+      content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s;
+    }
+    .toggle input:checked{ background:#0ea5e9 }
+    .toggle input:checked::after{ left:23px }
+
+    /* スライダー端のボタングループ */
+    .edge-buttons{
+      position:absolute; top:0; display:flex; gap:6px;
+    }
+    .edge-left{ left:0 }
+    .edge-right{ right:0 }
+    .edge-btn{
+      font-size:13px; padding:6px 10px; border-radius:10px; border:1px solid var(--muted); background:#fff; cursor:pointer;
+      box-shadow:0 1px 2px rgba(0,0,0,.06);
+    }
+    .edge-btn:active{ transform:translateY(1px) }
+
+    @media (max-width:520px){
+      input[type="range"]{ height:18px }
+      .now-label{ top:18px }
+      .edge-btn{ font-size:12px; padding:6px 8px }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>アナログ時計の読み方補助</h1>
+    <p class="guide">手順：①長針を動かして表示したい時刻にする → ②「スライド機能」をオン → ③左右にスライド（右=時間が進む〈青〉／左=戻る〈赤〉）。</p>
+
+    <div class="clock-wrap">
+      <svg id="clock" viewBox="0 0 300 300" role="img" aria-label="学習用アナログ時計">
+        <defs>
+          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity=".25"/>
+          </filter>
+        </defs>
+
+        <!-- 盤 -->
+        <circle cx="150" cy="150" r="140" fill="#fff" stroke="#dcdfe4" stroke-width="2"/>
+        <!-- 目盛り -->
+        <g id="ticks"></g>
+        <!-- 数字 -->
+        <g id="nums"></g>
+
+        <!-- 外周リング（移動量の可視化：今→表示分まで） -->
+        <circle cx="150" cy="150" r="132" fill="none" stroke="#eef1f5" stroke-width="8"/>
+        <path id="progressRing" d="" fill="none" stroke="#1e90ff" stroke-width="8" stroke-linecap="round" filter="url(#shadow)" style="display:none"/>
+
+        <!-- 針 -->
+        <g id="hands" transform="translate(150,150)">
+          <line id="hand-hour" x1="0" y1="10" x2="0" y2="-70" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+          <line id="hand-minute" x1="0" y1="12" x2="0" y2="-110" stroke="#111" stroke-width="4" stroke-linecap="round" style="touch-action:none; cursor:grab"/>
+          <circle cx="0" cy="0" r="6" fill="#111"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="meta">
+      <div id="digital">--:--</div>
+      <div id="offsetText" class="small">スライドOFF</div>
+    </div>
+
+    <div class="timebar">
+      <div class="toggle">
+        <label for="slideToggle">スライド機能</label>
+        <input type="checkbox" id="slideToggle" aria-label="スライド機能のオンオフ">
+      </div>
+
+      <div class="range-wrap">
+        <!-- 端のボタングループ -->
+        <div class="edge-buttons edge-left">
+          <button class="edge-btn" id="btnBack1">1分もどる</button>
+          <button class="edge-btn" id="btnBack5">5分もどる</button>
+        </div>
+        <div class="edge-buttons edge-right">
+          <button class="edge-btn" id="btnFwd1">1分すすむ</button>
+          <button class="edge-btn" id="btnFwd5">5分すすむ</button>
+        </div>
+
+        <div class="now-label">今</div>
+        <input id="slider" type="range" min="-720" max="720" step="1" value="0" aria-label="今からの時間のずれ（分）" disabled>
+      </div>
+
+      <div class="controls">
+        <button id="resetNow">今に戻す</button>
+        <button id="syncToSystem">現在時刻を取り込み</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      // 「今」の基準（スライドON時に更新）。秒は切り捨て。
+      let baseNow = new Date(); baseNow.setSeconds(0,0);
+      // 基準からのずれ（分）
+      let offsetMin = 0;
+      // スライド機能フラグ
+      let slideEnabled = false;
+
+      // DOM
+      const clock = document.getElementById('clock');
+      const ticksG = document.getElementById('ticks');
+      const numsG  = document.getElementById('nums');
+      const handHour = document.getElementById('hand-hour');
+      const handMin  = document.getElementById('hand-minute');
+      const digital  = document.getElementById('digital');
+      const offsetText = document.getElementById('offsetText');
+      const slider   = document.getElementById('slider');
+      const progressRing = document.getElementById('progressRing');
+      const slideToggle = document.getElementById('slideToggle');
+
+      // ボタン
+      const btnBack1 = document.getElementById('btnBack1');
+      const btnBack5 = document.getElementById('btnBack5');
+      const btnFwd1  = document.getElementById('btnFwd1');
+      const btnFwd5  = document.getElementById('btnFwd5');
+
+      // 目盛りと数字
+      for (let i=0;i<60;i++){
+        const a = (i/60)*2*Math.PI;
+        const outer = 138; const inner = i%5===0 ? 124 : 130;
+        const x1 = 150 + Math.sin(a)*inner, y1 = 150 - Math.cos(a)*inner;
+        const x2 = 150 + Math.sin(a)*outer, y2 = 150 - Math.cos(a)*outer;
+        const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+        line.setAttribute("x1",x1); line.setAttribute("y1",y1);
+        line.setAttribute("x2",x2); line.setAttribute("y2",y2);
+        line.setAttribute("stroke", "#b8bec7");
+        line.setAttribute("stroke-width", i%5===0 ? 2.2 : 1);
+        ticksG.appendChild(line);
+      }
+      for (let h=1;h<=12;h++){
+        const a = (h/12)*2*Math.PI, r = 112;
+        const x = 150 + Math.sin(a)*r, y = 150 - Math.cos(a)*r + 5;
+        const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+        t.setAttribute("x",x); t.setAttribute("y",y);
+        t.setAttribute("text-anchor","middle");
+        t.setAttribute("font-size","16");
+        t.setAttribute("font-weight","700");
+        t.textContent = h;
+        numsG.appendChild(t);
+      }
+
+      function clamp(v,min,max){ return Math.min(max, Math.max(min,v)); }
+
+      function getDisplayTime(){
+        return new Date(baseNow.getTime() + offsetMin*60000);
+      }
+
+      function render(){
+        const t = getDisplayTime();
+        const h = t.getHours()%12, m = t.getMinutes();
+        handHour.setAttribute("transform", `rotate(${(h + m/60)*30})`);
+        handMin.setAttribute("transform", `rotate(${m*6})`);
+        digital.textContent = t.toLocaleTimeString('ja-JP',{hour:'2-digit', minute:'2-digit'});
+
+        slider.value = String(offsetMin);
+        updateSliderStyle();
+
+        if(!slideEnabled){
+          offsetText.textContent = "スライドOFF";
+          progressRing.style.display = "none";
+        }else{
+          if(offsetMin === 0){
+            offsetText.textContent = "±0分";
+          }else if(offsetMin > 0){
+            offsetText.textContent = `${formatHM(offsetMin)}後`;
+          }else{
+            offsetText.textContent = `${formatHM(-offsetMin)}前`;
+          }
+          progressRing.style.display = "inline";
+          // 外周リング：方向は offsetMin の符号で決定
+          const baseMinDeg = (new Date(baseNow)).getMinutes()*6;
+          updateProgressRingSigned(baseMinDeg, offsetMin);
+        }
+      }
+
+      function formatHM(mins){
+        const n = Math.abs(mins);
+        const hh = Math.floor(n/60), mm = n%60;
+        if(hh===0) return `${mm}分`;
+        if(mm===0) return `${hh}時間`;
+        return `${hh}時間${mm}分`;
+      }
+
+      // スライダーの片側色付け（中央=今）。右=青、左=赤。動かした分だけ色を塗る。
+      function updateSliderStyle(){
+        const min = Number(slider.min), max = Number(slider.max), val = Number(slider.value);
+        const percent = (val - min) * 100 / (max - min);
+        const center  = (0   - min) * 100 / (max - min);
+
+        const disableUI = !slideEnabled;
+        slider.disabled = disableUI;
+
+        if(disableUI){
+          slider.style.background = '#e6e8ec';
+          return;
+        }
+
+        if(val === 0){
+          slider.style.background = `linear-gradient(90deg,#e6e8ec 0%,#e6e8ec 100%)`;
+          return;
+        }
+
+        if(val > 0){
+          const p = Math.max(percent, center);
+          slider.style.background = `linear-gradient(90deg,
+            #e6e8ec 0%,
+            #e6e8ec ${center}%,
+            var(--accent) ${center}%,
+            var(--accent) ${p}%,
+            #e6e8ec ${p}%,
+            #e6e8ec 100%)`;
+        }else{
+          const p = Math.min(percent, center);
+          slider.style.background = `linear-gradient(90deg,
+            #e6e8ec 0%,
+            #e6e8ec ${p}%,
+            var(--accent2) ${p}%,
+            var(--accent2) ${center}%,
+            #e6e8ec ${center}%,
+            #e6e8ec 100%)`;
+        }
+      }
+
+      // 外周リング：offsetMin の符号で方向を固定し、角度は分差×6°（最大359.9°）
+      function updateProgressRingSigned(baseMinDeg, offsetMin){
+        const sign = offsetMin >= 0 ? 1 : -1;
+        const deg = Math.min(Math.abs(offsetMin) * 6, 359.9); // 360°は弧が描けないため少し小さく
+        if(deg === 0){ progressRing.setAttribute('d',''); return; }
+
+        const start = baseMinDeg - 90;
+        const end   = baseMinDeg + sign*deg - 90;
+        const d = describeArc(150,150,132, start, end);
+        progressRing.setAttribute('d', d);
+        progressRing.setAttribute('stroke', sign>=0 ? 'var(--accent)' : 'var(--accent2)');
+      }
+
+      function polarToCartesian(cx,cy,r,deg){
+        const rad = deg*Math.PI/180;
+        return {x: cx + r*Math.cos(rad), y: cy + r*Math.sin(rad)};
+      }
+      function describeArc(cx,cy,r,startDeg,endDeg){
+        let delta = endDeg - startDeg;
+        const sweep = delta>=0 ? 1 : 0;
+        delta = Math.abs(delta);
+        const large = delta > 180 ? 1 : 0;
+        const s = polarToCartesian(cx,cy,r,startDeg);
+        const e = polarToCartesian(cx,cy,r,endDeg);
+        return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} ${sweep} ${e.x} ${e.y}`;
+      }
+
+      // スライド端ボタンの動き（ONのときのみ反応）
+      function nudge(mins){
+        if(!slideEnabled) return;
+        const min = Number(slider.min), max = Number(slider.max);
+        offsetMin = clamp(offsetMin + mins, min, max);
+        render();
+      }
+      btnBack1.addEventListener('click', ()=> nudge(-1));
+      btnBack5.addEventListener('click', ()=> nudge(-5));
+      btnFwd1.addEventListener('click',  ()=> nudge(+1));
+      btnFwd5.addEventListener('click',  ()=> nudge(+5));
+
+      // スライダー操作
+      slider.addEventListener('input', ()=>{
+        if(!slideEnabled) return;
+        offsetMin = clamp(Math.round(Number(slider.value)), Number(slider.min), Number(slider.max));
+        render();
+      });
+
+      // トグル：ONにした瞬間の表示時刻を「今」に固定（センター=0に再セット）
+      slideToggle.addEventListener('change', (e)=>{
+        slideEnabled = e.target.checked;
+        if(slideEnabled){
+          baseNow = getDisplayTime(); // 現在表示中の時刻を基準化
+          baseNow.setSeconds(0,0);
+          offsetMin = 0; // センターに戻す
+        }
+        render();
+      });
+
+      // 「今に戻す」＝オフセットを0へ（基準は維持）
+      document.getElementById('resetNow').addEventListener('click', ()=>{
+        offsetMin = 0;
+        render();
+      });
+
+      // 「現在時刻を取り込み」＝システム時刻を基準に
+      document.getElementById('syncToSystem').addEventListener('click', ()=>{
+        baseNow = new Date(); baseNow.setSeconds(0,0);
+        offsetMin = 0;
+        render();
+      });
+
+      // 長針ドラッグ（スライドON/OFF共通。ONのときは色も連動）
+      let dragging = false;
+      let prevMinIdx = null; // 0..59
+      handMin.addEventListener('pointerdown', e=>{
+        dragging = true;
+        handMin.style.cursor = 'grabbing';
+        e.target.setPointerCapture?.(e.pointerId);
+        prevMinIdx = getDisplayTime().getMinutes();
+      });
+      window.addEventListener('pointermove', e=>{
+        if(!dragging) return;
+        const ang = pointerAngle(e);                 // 12時=0, 時計回りで増加
+        const newIdx = Math.round(ang / 6) % 60;     // 分インデックス
+        let diff = newIdx - prevMinIdx;              // -59..+59
+        if(diff > 30)  diff -= 60;                   // 連続回転補正
+        if(diff < -30) diff += 60;
+
+        offsetMin = clamp(offsetMin + diff, Number(slider.min), Number(slider.max));
+        prevMinIdx = newIdx;
+        render();
+      });
+      window.addEventListener('pointerup', ()=>{ dragging=false; handMin.style.cursor='grab'; prevMinIdx=null; });
+      window.addEventListener('pointercancel', ()=>{ dragging=false; handMin.style.cursor='grab'; prevMinIdx=null; });
+
+      function pointerAngle(evt){
+        const pt = clock.createSVGPoint();
+        pt.x = evt.clientX; pt.y = evt.clientY;
+        const p = pt.matrixTransform(clock.getScreenCTM().inverse());
+        const dx = p.x - 150, dy = p.y - 150;
+        let deg = Math.atan2(dx, -dy) * 180/Math.PI;
+        if(deg<0) deg += 360;
+        return deg;
+      }
+
+      // 初期描画
+      render();
+    })();
+  </script>
+</body>
+</html>
