@@ -102,7 +102,7 @@
 <body>
   <div class="container" id="appRoot">
     <h1>いまからなんぷん？</h1>
-    <p class="guide"><strong></strong>① 長い はりを 動かす ②「スライド」を ON  ③ スライドを　動かす</p>
+    <p class="guide"><strong></strong>① 長い はりを 動かす ②「スライド」を ON  ③ スライドやボタンをそうさ</p>
 
     <div class="clock-wrap">
       <svg id="clock" viewBox="0 0 300 300" role="img" aria-label="学習用アナログ時計">
@@ -134,17 +134,17 @@
         <label for="slideToggle">スライド</label>
         <input type="checkbox" id="slideToggle" aria-label="スライド機能のオンオフ">
       </div>
-      <button class="btn" id="resetNow">今にもどす</button>
+      <button class="btn" id="resetNow">もどす</button>
       <button class="btn" id="syncToSystem">今の じこくを とりこむ</button>
     </div>
 
     <div class="timebar">
       <div class="range-wrap">
         <div class="edge-matrix" role="group" aria-label="時間調整ボタン">
-          <button class="edge-btn neg" id="btnBack5">−5分</button>
-          <button class="edge-btn pos" id="btnFwd5">＋5分</button>
-          <button class="edge-btn neg" id="btnBack1">−1分</button>
-          <button class="edge-btn pos" id="btnFwd1">＋1分</button>
+          <button class="edge-btn neg" id="btnBack5">5分もどる</button>
+          <button class="edge-btn pos" id="btnFwd5">5分すすむ</button>
+          <button class="edge-btn neg" id="btnBack1">1分もどる</button>
+          <button class="edge-btn pos" id="btnFwd1">1分すすむ</button>
         </div>
         <div class="now-center">今</div>
         <input id="slider" type="range" min="-720" max="720" step="1" value="0" aria-label="今からの時間のずれ（分）" disabled>
