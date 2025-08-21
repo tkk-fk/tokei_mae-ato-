@@ -84,15 +84,6 @@
     .toggle input:checked{ background:#0ea5e9 }
     .toggle input:checked::after{ left:26px }
 
-    /* ===== 全画面時（ネイティブ/フォールバック共通）を自動で“コンパクト”化 ===== */
-    #appRoot:fullscreen, #appRoot:-webkit-full-screen{ width:100vw; height:100svh; padding:10px }
-    html.fake-full body{ position:fixed; inset:0; overflow:hidden }
-    html.fake-full #appRoot{ position:fixed; inset:0; width:100vw; height:100svh; margin:0; padding:10px; background:var(--bg) }
-    .fs-compact .container{ gap:8px }
-    .fs-compact .btn{ --btn-font:14px; --btn-py:8px; --btn-px:10px }
-    .fs-compact .edge-btn{ font-size:12px; padding:6px 8px }
-    .fs-compact svg{ --clockH:52svh }
-
     /* ===== スマホ最適化：1画面内に収める ===== */
     @media (max-width:520px){
       :root{ --gap:10px; --btn-font:15px; --btn-py:10px; --btn-px:12px; --clockH:54svh }
@@ -135,7 +126,6 @@
     </div>
 
     <div class="toolbar">
-      <button class="btn" id="fsBtn" aria-label="全画面切替">全画面</button>
       <div class="toggle">
         <label for="slideToggle">スライド</label>
         <input type="checkbox" id="slideToggle" aria-label="スライド機能のオンオフ">
@@ -172,53 +162,6 @@
         if (now - lastTouchEnd <= 300) { e.preventDefault(); }
         lastTouchEnd = now;
       }, {passive:false});
-
-      // ===== Fullscreen（ネイティブ優先＋フォールバック） =====
-      const fsBtn = document.getElementById('fsBtn');
-      const appRoot = document.getElementById('appRoot');
-
-      function fsElement(){
-        return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-      }
-      function hasNativeFS(el){
-        return !!(el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen);
-      }
-
-      async function enterFS(){
-        if (hasNativeFS(appRoot)) {
-          try {
-            if (appRoot.requestFullscreen) { await appRoot.requestFullscreen(); }
-            else if (appRoot.webkitRequestFullscreen) { appRoot.webkitRequestFullscreen(); }
-            else if (appRoot.msRequestFullscreen) { appRoot.msRequestFullscreen(); }
-            updateFSState();
-            return;
-          } catch (e) {}
-        }
-        enableFakeFS();
-        updateFSState();
-      }
-      function exitFS(){
-        if (fsElement()) {
-          if (document.exitFullscreen) document.exitFullscreen();
-          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-          else if (document.msExitFullscreen) document.msExitFullscreen();
-        }
-        disableFakeFS();
-        updateFSState();
-      }
-      function enableFakeFS(){ document.documentElement.classList.add('fake-full'); }
-      function disableFakeFS(){ document.documentElement.classList.remove('fake-full'); }
-      function isFull(){ return !!fsElement() || document.documentElement.classList.contains('fake-full'); }
-      function updateFSState(){
-        const full = isFull();
-        fsBtn.textContent = full ? '全画面をやめる' : '全画面';
-        document.documentElement.classList.toggle('fs-compact', full); // 全画面時はコンパクト化
-      }
-      fsBtn.addEventListener('click', ()=> isFull() ? exitFS() : enterFS());
-      document.addEventListener('fullscreenchange', updateFSState);
-      document.addEventListener('webkitfullscreenchange', updateFSState);
-      document.addEventListener('msfullscreenchange', updateFSState);
-      updateFSState();
 
       // ===== 時計ロジック =====
       let baseNow = new Date(); baseNow.setSeconds(0,0);
