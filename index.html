@@ -2,12 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <!-- 連打ズーム対策：user-scalable は禁止せず、JS/CSSで二度タップ拡大を抑止します -->
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>いまからなんぷん？「◯ふんご／◯ふんまえ」が色でわかるアプリ</title>
   <style>
     :root{
       --bg:#fff; --fg:#111; --muted:#e6e8ec; --accent:#1e90ff; --accent2:#ff6b6b;
+      --gap:12px; --btn-py:10px; --btn-px:14px; --btn-font:16px; --clockH:60svh; --clockW:92vw;
     }
     *{ box-sizing:border-box }
     html,body{ height:100% }
@@ -16,18 +16,23 @@
       font-family: system-ui,-apple-system,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
       line-height:1.6;
       user-select:none; -webkit-user-select:none;
-      touch-action:manipulation;               /* 連打ズームを抑止（iOS/Android/Chrome） */
+      touch-action:manipulation;
       -webkit-text-size-adjust:100%;
-      overscroll-behavior:contain;             /* モバイルの引っ張り更新などを抑える */
+      overscroll-behavior:contain;
     }
-    .container{ max-width:920px; margin:0 auto; padding:16px; display:grid; gap:12px; }
+    /* ===== レイアウトを“1画面”に収めるためのグリッド ===== */
+    .container{
+      min-height:100svh; /* アドレスバーの出入りに強い */
+      display:grid;
+      grid-template-rows:auto auto 1fr auto auto; /* タイトル / ガイド / 時計 / 操作群 / スライダー */
+      gap:var(--gap);
+      max-width:920px; margin:0 auto; padding:12px;
+    }
     h1{ margin:0; font-size:clamp(18px,4vw,28px) }
-    .guide{
-      margin:0; font-weight:700; font-size:clamp(14px,3.4vw,18px);
-    }
+    .guide{ margin:0; font-weight:700; font-size:clamp(14px,3.4vw,18px) }
 
-    .clock-wrap{ display:grid; place-items:center; }
-    svg{ width:min(80vw,480px); height:auto; touch-action:none; } /* ドラッグ操作優先 */
+    .clock-wrap{ display:flex; align-items:center; justify-content:center; }
+    svg{ width:min(var(--clockW), var(--clockH)); height:auto; touch-action:none; max-height:var(--clockH); }
 
     .meta{ text-align:center }
     #digital{ font-size:clamp(18px,4vw,28px); font-weight:700; letter-spacing:.02em }
@@ -37,18 +42,26 @@
       display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center;
     }
     .btn{
-      padding:10px 14px; border-radius:12px; border:1px solid var(--muted);
-      background:#f8f9fb; cursor:pointer; font-size:16px;
+      padding:var(--btn-py) var(--btn-px); border-radius:12px; border:1px solid var(--muted);
+      background:#f8f9fb; cursor:pointer; font-size:var(--btn-font);
       touch-action:manipulation;
     }
     .btn:active{ transform:translateY(1px) }
 
-    .timebar{ padding:6px 0 20px; position:relative }
-    .range-wrap{ position:relative; padding:40px 8px 8px } /* 上に端ボタンを置くため余白 */
-    .now-label{
-      position:absolute; left:50%; top:18px; transform:translateX(-50%);
-      font-size:12px; color:#555; background:#fff; padding:0 4px; border-radius:4px; pointer-events:none;
+    /* スライダーエリア：端ボタンは“絶対配置”をやめ、グリッドで回避 */
+    .timebar{ padding-bottom:8px }
+    .range-wrap{ padding:8px; border-radius:14px; background:#fff }
+    .edge-row{ display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:center; margin-bottom:6px }
+    .edge-group{ display:flex; gap:6px }
+    .edge-group.right{ justify-content:flex-end }
+    .edge-btn{
+      font-size:14px; padding:8px 10px; border-radius:10px; border:1px solid var(--muted); background:#fff; cursor:pointer;
+      box-shadow:0 1px 2px rgba(0,0,0,.06);
+      touch-action:manipulation;
     }
+    .edge-btn:active{ transform:translateY(1px) }
+    .now-center{ text-align:center; font-size:12px; color:#555; margin:0 0 6px }
+
     input[type="range"]{
       width:100%; appearance:none; height:14px; border-radius:999px; background:var(--muted); outline:none; margin:0;
       touch-action:manipulation;
@@ -65,54 +78,36 @@
     }
     input[type="range"]::-moz-range-track{ height:14px; background:transparent }
 
-    .toggle{
-      display:flex; align-items:center; justify-content:center; gap:10px; margin-top:6px; font-size:14px;
-    }
+    .toggle{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:6px; font-size:14px }
     .toggle input{ width:50px; height:28px; appearance:none; background:var(--muted); border-radius:999px; position:relative; outline:none; cursor:pointer; transition:.2s; touch-action:manipulation }
-    .toggle input::after{
-      content:""; position:absolute; top:4px; left:4px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s;
-    }
+    .toggle input::after{ content:""; position:absolute; top:4px; left:4px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s }
     .toggle input:checked{ background:#0ea5e9 }
     .toggle input:checked::after{ left:26px }
 
-    /* スライダー端のボタングループ（タップしやすいサイズ） */
-    .edge-buttons{ position:absolute; top:0; display:flex; gap:6px }
-    .edge-left{ left:0 }
-    .edge-right{ right:0 }
-    .edge-btn{
-      font-size:14px; padding:8px 10px; border-radius:10px; border:1px solid var(--muted); background:#fff; cursor:pointer;
-      box-shadow:0 1px 2px rgba(0,0,0,.06);
-      touch-action:manipulation;
-    }
-    .edge-btn:active{ transform:translateY(1px) }
+    /* ===== 全画面時（ネイティブ/フォールバック共通）を自動で“コンパクト”化 ===== */
+    #appRoot:fullscreen, #appRoot:-webkit-full-screen{ width:100vw; height:100svh; padding:10px }
+    html.fake-full body{ position:fixed; inset:0; overflow:hidden }
+    html.fake-full #appRoot{ position:fixed; inset:0; width:100vw; height:100svh; margin:0; padding:10px; background:var(--bg) }
+    .fs-compact .container{ gap:8px }
+    .fs-compact .btn{ --btn-font:14px; --btn-py:8px; --btn-px:10px }
+    .fs-compact .edge-btn{ font-size:12px; padding:6px 8px }
+    .fs-compact svg{ --clockH:52svh }
 
-    /* ===== ネイティブ全画面時のレイアウト拡張 ===== */
-    #appRoot:fullscreen, #appRoot:-webkit-full-screen{
-      width:100vw; height:100dvh; margin:0; padding:12px; background:var(--bg);
-    }
-
-    /* ===== Fullscreen fallback（ネイティブ不可の端末向け） ===== */
-    html.fake-full, html.fake-full body { height: 100%; }
-    html.fake-full body { position: fixed; inset: 0; overflow: hidden; }
-    html.fake-full #appRoot {
-      position: fixed; inset: 0;
-      width: 100vw; height: 100dvh; /* モバイルのアドレスバー高さ変動に強い */
-      margin: 0; padding: 12px; background: var(--bg);
-    }
-
+    /* ===== スマホ最適化：1画面内に収める ===== */
     @media (max-width:520px){
-      input[type="range"]{ height:18px }
-      .now-label{ top:22px }
-      .edge-btn{ font-size:13px; padding:8px 8px }
-      .btn{ font-size:15px; padding:10px 12px }
+      :root{ --gap:10px; --btn-font:15px; --btn-py:10px; --btn-px:12px; --clockH:54svh }
+      .edge-row{ grid-template-columns:1fr }          /* 左右グループを上下に */
+      .edge-group{ justify-content:space-between }    /* 重なり防止 */
+    }
+    @media (max-height:680px){
+      :root{ --clockH:50svh }
     }
   </style>
 </head>
 <body>
   <div class="container" id="appRoot">
     <h1>いまからなんぷん？</h1>
-    <!-- 子ども向けの短いガイド -->
-    <p class="guide"><strong>つかいかた：</strong>① ながい はりを うごかす → ② 「スライド」を ON → ③ みぎ＝すすむ（あお）／ひだり＝もどる（あか）</p>
+    <p class="guide"><strong></strong>① 長い はりを 動かす ②「スライド」を ON  ③ スライドを　動かす</p>
 
     <div class="clock-wrap">
       <svg id="clock" viewBox="0 0 300 300" role="img" aria-label="学習用アナログ時計">
@@ -121,19 +116,11 @@
             <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity=".25"/>
           </filter>
         </defs>
-
-        <!-- 盤 -->
         <circle cx="150" cy="150" r="140" fill="#fff" stroke="#dcdfe4" stroke-width="2"/>
-        <!-- 目盛り -->
         <g id="ticks"></g>
-        <!-- 数字 -->
         <g id="nums"></g>
-
-        <!-- 外周リング（移動量の可視化：今→表示分まで） -->
         <circle cx="150" cy="150" r="132" fill="none" stroke="#eef1f5" stroke-width="8"/>
         <path id="progressRing" d="" fill="none" stroke="#1e90ff" stroke-width="8" stroke-linecap="round" filter="url(#shadow)" style="display:none"/>
-
-        <!-- 針 -->
         <g id="hands" transform="translate(150,150)">
           <line id="hand-hour" x1="0" y1="10" x2="0" y2="-70" stroke="#111" stroke-width="6" stroke-linecap="round"/>
           <line id="hand-minute" x1="0" y1="12" x2="0" y2="-110" stroke="#111" stroke-width="4" stroke-linecap="round" style="touch-action:none; cursor:grab"/>
@@ -148,28 +135,28 @@
     </div>
 
     <div class="toolbar">
-      <button class="btn" id="fsBtn" aria-label="全画面切替">全画面にする</button>
+      <button class="btn" id="fsBtn" aria-label="全画面切替">全画面</button>
       <div class="toggle">
         <label for="slideToggle">スライド</label>
         <input type="checkbox" id="slideToggle" aria-label="スライド機能のオンオフ">
       </div>
-      <button class="btn" id="resetNow">いまにもどす</button>
-      <button class="btn" id="syncToSystem">いまの じこくを とりこむ</button>
+      <button class="btn" id="resetNow">今にもどす</button>
+      <button class="btn" id="syncToSystem">今の じこくを とりこむ</button>
     </div>
 
     <div class="timebar">
       <div class="range-wrap">
-        <!-- 端ボタン -->
-        <div class="edge-buttons edge-left">
-          <button class="edge-btn" id="btnBack1">1分もどる</button>
-          <button class="edge-btn" id="btnBack5">5分もどる</button>
+        <div class="edge-row">
+          <div class="edge-group left">
+            <button class="edge-btn" id="btnBack5">−5分</button>
+            <button class="edge-btn" id="btnBack1">−1分</button>
+          </div>
+          <div class="edge-group right">
+            <button class="edge-btn" id="btnFwd1">＋1分</button>
+            <button class="edge-btn" id="btnFwd5">＋5分</button>
+          </div>
         </div>
-        <div class="edge-buttons edge-right">
-          <button class="edge-btn" id="btnFwd1">1分すすむ</button>
-          <button class="edge-btn" id="btnFwd5">5分すすむ</button>
-        </div>
-
-        <div class="now-label">今</div>
+        <div class="now-center">今</div>
         <input id="slider" type="range" min="-720" max="720" step="1" value="0" aria-label="今からの時間のずれ（分）" disabled>
       </div>
     </div>
@@ -198,51 +185,45 @@
       }
 
       async function enterFS(){
-        // 1) ネイティブ全画面を試す（ユーザー操作の直後）
         if (hasNativeFS(appRoot)) {
           try {
             if (appRoot.requestFullscreen) { await appRoot.requestFullscreen(); }
             else if (appRoot.webkitRequestFullscreen) { appRoot.webkitRequestFullscreen(); }
             else if (appRoot.msRequestFullscreen) { appRoot.msRequestFullscreen(); }
-            updateFSBtn();
+            updateFSState();
             return;
-          } catch (e) {
-            // 失敗時はフォールバック
-          }
+          } catch (e) {}
         }
-        // 2) フォールバック：CSSで疑似フルスクリーン
         enableFakeFS();
-        updateFSBtn();
+        updateFSState();
       }
-
       function exitFS(){
-        // ネイティブ解除
         if (fsElement()) {
           if (document.exitFullscreen) document.exitFullscreen();
           else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
           else if (document.msExitFullscreen) document.msExitFullscreen();
         }
-        // フォールバック解除
         disableFakeFS();
-        updateFSBtn();
+        updateFSState();
       }
-
       function enableFakeFS(){ document.documentElement.classList.add('fake-full'); }
       function disableFakeFS(){ document.documentElement.classList.remove('fake-full'); }
-
       function isFull(){ return !!fsElement() || document.documentElement.classList.contains('fake-full'); }
-      function updateFSBtn(){ fsBtn.textContent = isFull() ? '全画面をやめる' : '全画面にする'; }
-
+      function updateFSState(){
+        const full = isFull();
+        fsBtn.textContent = full ? '全画面をやめる' : '全画面';
+        document.documentElement.classList.toggle('fs-compact', full); // 全画面時はコンパクト化
+      }
       fsBtn.addEventListener('click', ()=> isFull() ? exitFS() : enterFS());
-      document.addEventListener('fullscreenchange', updateFSBtn);
-      document.addEventListener('webkitfullscreenchange', updateFSBtn);
-      document.addEventListener('msfullscreenchange', updateFSBtn);
-      updateFSBtn();
+      document.addEventListener('fullscreenchange', updateFSState);
+      document.addEventListener('webkitfullscreenchange', updateFSState);
+      document.addEventListener('msfullscreenchange', updateFSState);
+      updateFSState();
 
       // ===== 時計ロジック =====
-      let baseNow = new Date(); baseNow.setSeconds(0,0); // スライドON時に基準化
-      let offsetMin = 0;        // 基準からのずれ（分）
-      let slideEnabled = false; // スライド機能フラグ
+      let baseNow = new Date(); baseNow.setSeconds(0,0);
+      let offsetMin = 0;
+      let slideEnabled = false;
 
       const clock = document.getElementById('clock');
       const ticksG = document.getElementById('ticks');
@@ -324,44 +305,22 @@
         return `${hh}時間${mm}分`;
       }
 
-      // スライダートラックの色（右=青／左=赤）
       function updateSliderStyle(){
         const min = Number(slider.min), max = Number(slider.max), val = Number(slider.value);
         const percent = (val - min) * 100 / (max - min);
         const center  = (0   - min) * 100 / (max - min);
-
         slider.disabled = !slideEnabled;
-
-        if(!slideEnabled){
-          slider.style.background = '#e6e8ec';
-          return;
-        }
-        if(val === 0){
-          slider.style.background = `linear-gradient(90deg,#e6e8ec 0%,#e6e8ec 100%)`;
-          return;
-        }
+        if(!slideEnabled){ slider.style.background = '#e6e8ec'; return; }
+        if(val === 0){ slider.style.background = `linear-gradient(90deg,#e6e8ec 0%,#e6e8ec 100%)`; return; }
         if(val > 0){
           const p = Math.max(percent, center);
-          slider.style.background = `linear-gradient(90deg,
-            #e6e8ec 0%,
-            #e6e8ec ${center}%,
-            var(--accent) ${center}%,
-            var(--accent) ${p}%,
-            #e6e8ec ${p}%,
-            #e6e8ec 100%)`;
+          slider.style.background = `linear-gradient(90deg,#e6e8ec 0%,#e6e8ec ${center}%,var(--accent) ${center}%,var(--accent) ${p}%,#e6e8ec ${p}%,#e6e8ec 100%)`;
         }else{
           const p = Math.min(percent, center);
-          slider.style.background = `linear-gradient(90deg,
-            #e6e8ec 0%,
-            #e6e8ec ${p}%,
-            var(--accent2) ${p}%,
-            var(--accent2) ${center}%,
-            #e6e8ec ${center}%,
-            #e6e8ec 100%)`;
+          slider.style.background = `linear-gradient(90deg,#e6e8ec 0%,#e6e8ec ${p}%,var(--accent2) ${p}%,var(--accent2) ${center}%,#e6e8ec ${center}%,#e6e8ec 100%)`;
         }
       }
 
-      // 外周リング：offsetMin の符号で方向を固定
       function updateProgressRingSigned(baseMinDeg, offsetMin){
         const sign = offsetMin >= 0 ? 1 : -1;
         const deg = Math.min(Math.abs(offsetMin) * 6, 359.9);
@@ -373,88 +332,38 @@
         progressRing.setAttribute('stroke', sign>=0 ? 'var(--accent)' : 'var(--accent2)');
       }
       function polarToCartesian(cx,cy,r,deg){
-        const rad = deg*Math.PI/180;
-        return {x: cx + r*Math.cos(rad), y: cy + r*Math.sin(rad)};
+        const rad = deg*Math.PI/180; return {x: cx + r*Math.cos(rad), y: cy + r*Math.sin(rad)};
       }
       function describeArc(cx,cy,r,startDeg,endDeg){
-        let delta = endDeg - startDeg;
-        const sweep = delta>=0 ? 1 : 0;
-        delta = Math.abs(delta);
-        const large = delta > 180 ? 1 : 0;
-        const s = polarToCartesian(cx,cy,r,startDeg);
-        const e = polarToCartesian(cx,cy,r,endDeg);
+        let delta = endDeg - startDeg; const sweep = delta>=0 ? 1 : 0; delta = Math.abs(delta);
+        const large = delta > 180 ? 1 : 0; const s = polarToCartesian(cx,cy,r,startDeg); const e = polarToCartesian(cx,cy,r,endDeg);
         return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} ${sweep} ${e.x} ${e.y}`;
       }
 
-      // 端ボタン（スライドON時のみ）
-      function nudge(mins){
-        if(!slideEnabled) return;
-        const min = Number(slider.min), max = Number(slider.max);
-        offsetMin = clamp(offsetMin + mins, min, max);
-        render();
-      }
+      function nudge(mins){ if(!slideEnabled) return; const min = Number(slider.min), max = Number(slider.max); offsetMin = clamp(offsetMin + mins, min, max); render(); }
       btnBack1.addEventListener('click', ()=> nudge(-1));
       btnBack5.addEventListener('click', ()=> nudge(-5));
       btnFwd1.addEventListener('click',  ()=> nudge(+1));
       btnFwd5.addEventListener('click',  ()=> nudge(+5));
 
-      // スライダー操作
-      slider.addEventListener('input', ()=>{
-        if(!slideEnabled) return;
-        offsetMin = clamp(Math.round(Number(slider.value)), Number(slider.min), Number(slider.max));
-        render();
-      });
+      slider.addEventListener('input', ()=>{ if(!slideEnabled) return; offsetMin = clamp(Math.round(Number(slider.value)), Number(slider.min), Number(slider.max)); render(); });
 
-      // スライドON：その時の表示時刻を基準化
-      slideToggle.addEventListener('change', (e)=>{
-        slideEnabled = e.target.checked;
-        if(slideEnabled){
-          baseNow = getDisplayTime();
-          baseNow.setSeconds(0,0);
-          offsetMin = 0;
-        }
-        render();
-      });
+      slideToggle.addEventListener('change', (e)=>{ slideEnabled = e.target.checked; if(slideEnabled){ baseNow = getDisplayTime(); baseNow.setSeconds(0,0); offsetMin = 0; } render(); });
 
-      // ボタン
-      document.getElementById('resetNow').addEventListener('click', ()=>{
-        offsetMin = 0; render();
-      });
-      document.getElementById('syncToSystem').addEventListener('click', ()=>{
-        baseNow = new Date(); baseNow.setSeconds(0,0); offsetMin = 0; render();
-      });
+      document.getElementById('resetNow').addEventListener('click', ()=>{ offsetMin = 0; render(); });
+      document.getElementById('syncToSystem').addEventListener('click', ()=>{ baseNow = new Date(); baseNow.setSeconds(0,0); offsetMin = 0; render(); });
 
       // 長針ドラッグ
-      let dragging = false;
-      let prevMinIdx = null; // 0..59
-      handMin.addEventListener('pointerdown', e=>{
-        dragging = true;
-        handMin.style.cursor = 'grabbing';
-        e.target.setPointerCapture?.(e.pointerId);
-        prevMinIdx = getDisplayTime().getMinutes();
-      });
+      let dragging = false; let prevMinIdx = null;
+      handMin.addEventListener('pointerdown', e=>{ dragging = true; handMin.style.cursor = 'grabbing'; e.target.setPointerCapture?.(e.pointerId); prevMinIdx = getDisplayTime().getMinutes(); });
       window.addEventListener('pointermove', e=>{
-        if(!dragging) return;
-        const ang = pointerAngle(e);
-        const newIdx = Math.round(ang / 6) % 60;
-        let diff = newIdx - prevMinIdx;
-        if(diff > 30)  diff -= 60;
-        if(diff < -30) diff += 60;
-        offsetMin = clamp(offsetMin + diff, Number(slider.min), Number(slider.max));
-        prevMinIdx = newIdx;
-        render();
+        if(!dragging) return; const ang = pointerAngle(e); const newIdx = Math.round(ang / 6) % 60; let diff = newIdx - prevMinIdx; if(diff > 30)  diff -= 60; if(diff < -30) diff += 60; offsetMin = clamp(offsetMin + diff, Number(slider.min), Number(slider.max)); prevMinIdx = newIdx; render();
       }, {passive:true});
       window.addEventListener('pointerup', ()=>{ dragging=false; handMin.style.cursor='grab'; prevMinIdx=null; });
       window.addEventListener('pointercancel', ()=>{ dragging=false; handMin.style.cursor='grab'; prevMinIdx=null; });
 
       function pointerAngle(evt){
-        const pt = clock.createSVGPoint();
-        pt.x = evt.clientX; pt.y = evt.clientY;
-        const p = pt.matrixTransform(clock.getScreenCTM().inverse());
-        const dx = p.x - 150, dy = p.y - 150;
-        let deg = Math.atan2(dx, -dy) * 180/Math.PI;
-        if(deg<0) deg += 360;
-        return deg;
+        const svg = clock; const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY; const p = pt.matrixTransform(svg.getScreenCTM().inverse()); const dx = p.x - 150, dy = p.y - 150; let deg = Math.atan2(dx, -dy) * 180/Math.PI; if(deg<0) deg += 360; return deg;
       }
 
       render();
