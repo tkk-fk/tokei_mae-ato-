@@ -86,6 +86,20 @@
     }
     .edge-btn:active{ transform:translateY(1px) }
 
+    /* ===== ネイティブ全画面時のレイアウト拡張 ===== */
+    #appRoot:fullscreen, #appRoot:-webkit-full-screen{
+      width:100vw; height:100dvh; margin:0; padding:12px; background:var(--bg);
+    }
+
+    /* ===== Fullscreen fallback（ネイティブ不可の端末向け） ===== */
+    html.fake-full, html.fake-full body { height: 100%; }
+    html.fake-full body { position: fixed; inset: 0; overflow: hidden; }
+    html.fake-full #appRoot {
+      position: fixed; inset: 0;
+      width: 100vw; height: 100dvh; /* モバイルのアドレスバー高さ変動に強い */
+      margin: 0; padding: 12px; background: var(--bg);
+    }
+
     @media (max-width:520px){
       input[type="range"]{ height:18px }
       .now-label{ top:22px }
@@ -172,22 +186,54 @@
         lastTouchEnd = now;
       }, {passive:false});
 
-      // ===== Fullscreen（各ブラウザ対応） =====
+      // ===== Fullscreen（ネイティブ優先＋フォールバック） =====
       const fsBtn = document.getElementById('fsBtn');
-      function fsElement(){ return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement; }
+      const appRoot = document.getElementById('appRoot');
+
+      function fsElement(){
+        return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+      }
+      function hasNativeFS(el){
+        return !!(el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen);
+      }
+
       async function enterFS(){
-        const el = document.documentElement; // 画面全体を全画面に
-        if (el.requestFullscreen) await el.requestFullscreen();
-        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+        // 1) ネイティブ全画面を試す（ユーザー操作の直後）
+        if (hasNativeFS(appRoot)) {
+          try {
+            if (appRoot.requestFullscreen) { await appRoot.requestFullscreen(); }
+            else if (appRoot.webkitRequestFullscreen) { appRoot.webkitRequestFullscreen(); }
+            else if (appRoot.msRequestFullscreen) { appRoot.msRequestFullscreen(); }
+            updateFSBtn();
+            return;
+          } catch (e) {
+            // 失敗時はフォールバック
+          }
+        }
+        // 2) フォールバック：CSSで疑似フルスクリーン
+        enableFakeFS();
+        updateFSBtn();
       }
+
       function exitFS(){
-        if (document.exitFullscreen) document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-        else if (document.msExitFullscreen) document.msExitFullscreen();
+        // ネイティブ解除
+        if (fsElement()) {
+          if (document.exitFullscreen) document.exitFullscreen();
+          else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          else if (document.msExitFullscreen) document.msExitFullscreen();
+        }
+        // フォールバック解除
+        disableFakeFS();
+        updateFSBtn();
       }
-      function updateFSBtn(){ fsBtn.textContent = fsElement() ? '全画面をやめる' : '全画面にする'; }
-      fsBtn.addEventListener('click', ()=> fsElement() ? exitFS() : enterFS());
+
+      function enableFakeFS(){ document.documentElement.classList.add('fake-full'); }
+      function disableFakeFS(){ document.documentElement.classList.remove('fake-full'); }
+
+      function isFull(){ return !!fsElement() || document.documentElement.classList.contains('fake-full'); }
+      function updateFSBtn(){ fsBtn.textContent = isFull() ? '全画面をやめる' : '全画面にする'; }
+
+      fsBtn.addEventListener('click', ()=> isFull() ? exitFS() : enterFS());
       document.addEventListener('fullscreenchange', updateFSBtn);
       document.addEventListener('webkitfullscreenchange', updateFSBtn);
       document.addEventListener('msfullscreenchange', updateFSBtn);
